@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generation Timeline / Oś Pokoleń</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f3; --bg3: #eeede8;
+    --text: #1a1a18; --text2: #5f5e5a; --text3: #9a9993;
+    --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+    --radius: 10px; --radius-sm: 6px;
+    --shadow: 0 2px 20px rgba(0,0,0,0.10);
+    --accent: #0f3460;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+      --text: #f0efe9; --text2: #a8a79f; --text3: #6a6963;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.18);
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+  .app { max-width: 980px; margin: 0 auto; background: var(--bg); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .app-header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 2rem 2.5rem; color: #fff; position: relative; }
+  .app-eyebrow { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 6px; }
+  .app-title { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+  .app-sub { font-size: 13px; color: rgba(255,255,255,0.55); }
+  .lang-switcher { position: absolute; top: 1.5rem; right: 2rem; display: flex; border-radius: 20px; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.25); }
+  .lang-btn { padding: 5px 16px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; background: transparent; color: rgba(255,255,255,0.5); transition: all 0.15s; letter-spacing: 0.05em; }
+  .lang-btn.active { background: rgba(255,255,255,0.18); color: #fff; }
+  .lang-btn:hover:not(.active) { color: rgba(255,255,255,0.85); }
+  .app-body { padding: 1.5rem 2rem; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .filter-btn { font-size: 11px; padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border2); background: var(--bg); color: var(--text2); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .filter-btn:hover { background: var(--bg2); color: var(--text); }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .axis-row { display: flex; align-items: center; margin-bottom: 4px; }
+  .label-col { width: 165px; min-width: 165px; }
+  .tick-area { flex: 1; position: relative; height: 20px; }
+  .tick { position: absolute; font-size: 9px; color: var(--text3); transform: translateX(-50%); user-select: none; }
+  .gen-row { display: flex; align-items: center; margin-bottom: 7px; transition: opacity 0.2s; }
+  .gen-row.dimmed { opacity: 0.12; pointer-events: none; }
+  .gen-meta { width: 165px; min-width: 165px; text-align: right; padding-right: 14px; cursor: pointer; }
+  .gen-meta:hover .gen-name { color: #185FA5; }
+  .gen-name { font-size: 12px; font-weight: 600; color: var(--text); transition: color 0.15s; line-height: 1.3; }
+  .gen-yr { font-size: 10px; color: var(--text3); }
+  .bar-area { flex: 1; position: relative; height: 32px; cursor: pointer; }
+  .bar-bg { position: absolute; inset: 0; background: var(--bg2); border-radius: 4px; }
+  .grid-line { position: absolute; top: 0; bottom: 0; width: 0.5px; background: var(--border); pointer-events: none; }
+  .bar { position: absolute; top: 0; height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 10px; font-weight: 600; transition: filter 0.15s, transform 0.15s; }
+  .bar:hover { filter: brightness(1.1); transform: scaleY(1.07); }
+  .bar.selected { outline: 2.5px solid var(--text); outline-offset: 2px; }
+  .now-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #e05c30; pointer-events: none; z-index: 5; border-radius: 2px; }
+  .now-label { position: absolute; top: -17px; font-size: 9px; color: #e05c30; transform: translateX(-50%); font-weight: 700; white-space: nowrap; }
+  .right-nick { width: 130px; min-width: 130px; padding-left: 12px; font-size: 10px; color: var(--text3); display: flex; align-items: center; }
+  .micro-tag { display: inline-block; font-size: 8px; padding: 1px 5px; border-radius: 3px; background: #FAEEDA; color: #BA7517; border: 1px solid #EF9F27; margin-left: 4px; vertical-align: middle; font-weight: 700; }
+  .detail-panel { border: 1px solid var(--border2); border-radius: var(--radius); padding: 1.25rem 1.5rem; background: var(--bg); margin-bottom: 1rem; animation: fadeIn 0.2s ease; }
+  .detail-panel.hidden { display: none; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .detail-dot { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; }
+  .detail-title { font-size: 18px; font-weight: 700; color: var(--text); }
+  .detail-subtitle { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat-card { background: var(--bg2); border-radius: var(--radius-sm); padding: 10px 14px; }
+  .stat-label { font-size: 10px; color: var(--text3); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat-unit { font-size: 11px; color: var(--text2); font-weight: 400; }
+  .detail-desc { font-size: 13px; color: var(--text2); line-height: 1.8; margin-bottom: 12px; }
+  .traits-wrap { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .trait { font-size: 11px; padding: 4px 10px; border-radius: 14px; border: 1px solid var(--border); color: var(--text2); background: var(--bg2); }
+  .events-label { font-size: 10px; color: var(--text3); line-height: 1.7; }
+  .hint { text-align: center; font-size: 11px; color: var(--text3); margin-bottom: 1rem; }
+  .footnote { text-align: center; font-size: 10px; color: var(--text3); line-height: 1.7; padding: 1rem 0 0.5rem; border-top: 1px solid var(--border); margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="app-header">
+    <div class="app-eyebrow" id="h-eyebrow"></div>
+    <div class="app-title" id="h-title"></div>
+    <div class="app-sub" id="h-sub"></div>
+    <div class="lang-switcher">
+      <button class="lang-btn active" onclick="setLang('en',this)">EN</button>
+      <button class="lang-btn" onclick="setLang('pl',this)">PL</button>
+    </div>
+  </div>
+  <div class="app-body">
+    <div class="controls">
+      <button class="filter-btn active" id="btn-all"   onclick="filterAll(this)"></button>
+      <button class="filter-btn"        id="btn-pre"   onclick="filterEra('pre',this)"></button>
+      <button class="filter-btn"        id="btn-mid"   onclick="filterEra('mid',this)"></button>
+      <button class="filter-btn"        id="btn-new"   onclick="filterEra('new',this)"></button>
+      <button class="filter-btn"        id="btn-micro" onclick="filterMicro(this)"></button>
+    </div>
+    <p class="hint" id="ui-hint"></p>
+    <div class="timeline-area">
+      <div class="axis-row">
+        <div class="label-col"></div>
+        <div class="tick-area" id="ticks"></div>
+        <div style="width:130px;min-width:130px;"></div>
+      </div>
+      <div id="rows"></div>
+    </div>
+    <div class="detail-panel hidden" id="detail">
+      <div class="detail-header">
+        <div class="detail-dot" id="d-dot"></div>
+        <div>
+          <div class="detail-title" id="d-title"></div>
+          <div class="detail-subtitle" id="d-sub"></div>
+        </div>
+      </div>
+      <div class="detail-grid" id="d-stats"></div>
+      <div class="detail-desc" id="d-desc"></div>
+      <div class="traits-wrap" id="d-traits"></div>
+      <div class="events-label" id="d-events"></div>
+    </div>
+    <div class="footnote" id="ui-footnote"></div>
+  </div>
+</div>
+
+<script>
+const START=1883,END=2040,RANGE=END-START,NOW=2026;
+let lang='en', selectedId=null;
+
+const i18n={
+  en:{
+    eyebrow:"Generational Research · Human Development Framework",
+    title:"Named Generations of the Modern Era",
+    sub:"Birth years 1883–2039 · Including the Zillennial transition cohort (1997–2002)",
+    btnAll:"All generations",btnPre:"Pre-1945",btnMid:"1945–1996",btnNew:"1997–present",btnMicro:"Micro-gens only",
+    hint:"Click any bar or generation name to explore details",
+    footnote:"★ Zillennials (1997–2002) are a micro-generation — the last cohort to know life both before and after smartphones.<br>Cutoff years are approximate; scholarly definitions vary ±2–3 years across institutions.",
+    now:"Now",birthSpan:"Birth span",ageRange:"Age range today",era:"Era",yrs:" yrs",
+    prewar:"Pre-war",coldwar:"Cold War",digital:"Digital",keyEvents:"Key events: "
+  },
+  pl:{
+    eyebrow:"Badania Pokoleń · Ramy Rozwoju Człowieka",
+    title:"Nazwane Pokolenia Ery Nowożytnej",
+    sub:"Lata urodzin 1883–2039 · Z uwzględnieniem mikro-pokolenia Zillenialsi (1997–2002)",
+    btnAll:"Wszystkie pokolenia",btnPre:"Przed 1945",btnMid:"1945–1996",btnNew:"1997–dziś",btnMicro:"Tylko mikro-pokolenia",
+    hint:"Kliknij pasek lub nazwę pokolenia, aby zobaczyć szczegóły",
+    footnote:"★ Zillenialsi (1997–2002) to mikro-pokolenie — ostatni rocznik znający życie przed smartfonami i po nich.<br>Daty graniczne są przybliżone; definicje różnią się o ±2–3 lata między instytucjami.",
+    now:"Teraz",birthSpan:"Rozpiętość urodzeń",ageRange:"Wiek dzisiaj",era:"Era",yrs:" lat",
+    prewar:"Przedwojenny",coldwar:"Zimna Wojna",digital:"Cyfrowe",keyEvents:"Kluczowe wydarzenia: "
+  }
+};
+
+const gens=[
+  {id:'lost',start:1883,end:1900,color:"#888780",text:"#F1EFE8",era:'pre',
+   name_en:"Lost Generation",name_pl:"Stracone Pokolenie",nick_en:"Pre-modern cohort",nick_pl:"Kohorta przednowoczesna",
+   desc_en:"Came of age during World War I. Defined by disillusionment with tradition and institutions. Many became iconic writers — Hemingway, Fitzgerald, T.S. Eliot.",
+   desc_pl:"Dorastali podczas I wojny światowej. Zdefiniowani przez rozczarowanie tradycją i instytucjami. Wielu stało się ikonicznymi pisarzami — Hemingway, Fitzgerald, T.S. Eliot.",
+   traits_en:["Post-WWI disillusionment","Literary renaissance","Labor movement pioneers","Low institutional trust"],
+   traits_pl:["Rozczarowanie po I WŚ","Renesans literacki","Pionierzy ruchu robotniczego","Niskie zaufanie do instytucji"],
+   events_en:["WWI (1914–18)","Prohibition era","The Roaring Twenties","Great Depression begins"],
+   events_pl:["I Wojna Światowa (1914–18)","Prohibicja","Szalone lata 20.","Początek Wielkiego Kryzysu"]},
+  {id:'greatest',start:1901,end:1927,color:"#0C447C",text:"#E6F1FB",era:'pre',
+   name_en:"Greatest Generation",name_pl:"Największe Pokolenie",nick_en:"GI Generation",nick_pl:"Pokolenie GI",
+   desc_en:"Grew up through the Great Depression and fought in WWII. Known for sacrifice and civic duty. Called 'greatest' by journalist Tom Brokaw.",
+   desc_pl:"Dorastali w Wielkim Kryzysie i walczyli w II wojnie światowej. Znani z poświęcenia i obowiązku obywatelskiego. Nazwani 'największymi' przez Toma Brokawa.",
+   traits_en:["WWII veterans","Strong civic duty","Frugal & resilient","Built post-war economy"],
+   traits_pl:["Weterani II WŚ","Silny obowiązek obywatelski","Oszczędni i wytrwali","Zbudowali gospodarkę powojenną"],
+   events_en:["Great Depression","WWII (1939–45)","New Deal","Post-war economic boom"],
+   events_pl:["Wielki Kryzys","II Wojna Światowa (1939–45)","Nowy Ład","Powojenny boom gospodarczy"]},
+  {id:'silent',start:1928,end:1945,color:"#534AB7",text:"#EEEDFE",era:'pre',
+   name_en:"Silent Generation",name_pl:"Ciche Pokolenie",nick_en:"Traditionalists",nick_pl:"Tradycjonaliści",
+   desc_en:"Called 'silent' because they were expected to be seen, not heard. Nevertheless produced civil rights leaders like MLK and Rosa Parks.",
+   desc_pl:"Nazwani 'cichymi', bo oczekiwano od nich milczenia. Mimo to wydali przywódców praw obywatelskich jak MLK i Rosa Parks.",
+   traits_en:["Conformist culture","Civil rights pioneers","McCarthy-era caution","Loyal employees"],
+   traits_pl:["Kultura konformizmu","Pionierzy praw obywatelskich","Ostrożność ery McCarthy'ego","Lojalni pracownicy"],
+   events_en:["WWII childhoods","Korean War","McCarthy era","Early Civil Rights"],
+   events_pl:["Dzieciństwo w II WŚ","Wojna koreańska","Era McCarthy'ego","Początki praw obywatelskich"]},
+  {id:'boomers',start:1946,end:1964,color:"#D85A30",text:"#FAECE7",era:'mid',
+   name_en:"Baby Boomers",name_pl:"Baby Boomers",nick_en:"The Boom generation",nick_pl:"Pokolenie wyżu demograficznego",
+   desc_en:"Born from the massive post-WWII birth surge — hence 'boom'. The largest generation of the 20th century. Defined the counterculture of the 60s and 70s, the Reagan era of the 80s, and still dominate politics and business leadership today.",
+   desc_pl:"Urodzeni w ogromnym wyżu demograficznym po II wojnie — stąd 'boom'. Największe pokolenie XX wieku. Zdefiniowali kontrkulturę lat 60. i 70., erę Reagana w latach 80. i nadal dominują w polityce i biznesie.",
+   traits_en:["Post-war birth surge","Counterculture & Woodstock","Anti-Vietnam protests","Homeownership focus","Largest voter bloc in history"],
+   traits_pl:["Powojenny wyż demograficzny","Kontrkultura i Woodstock","Protesty anty-wietnamskie","Skupienie na własności domu","Największa grupa wyborców w historii"],
+   events_en:["Post-WWII baby boom","Vietnam War","Moon landing 1969","Watergate","Reagan era","Fall of Berlin Wall"],
+   events_pl:["Powojenny wyż urodzeń","Wojna wietnamska","Lądowanie na Księżycu 1969","Watergate","Era Reagana","Upadek Muru Berlińskiego"]},
+  {id:'genx',start:1965,end:1980,color:"#0F6E56",text:"#E1F5EE",era:'mid',
+   name_en:"Generation X",name_pl:"Pokolenie X",nick_en:"Latchkey generation",nick_pl:"Pokolenie klucza na szyi",
+   desc_en:"Raised as latchkey kids with working parents. Skeptical and independent, often overlooked between Boomers and Millennials. Witnessed the dawn of personal computing and the end of the Cold War.",
+   desc_pl:"Wychowywani jako dzieci z kluczem na szyi przy pracujących rodzicach. Sceptyczni i niezależni. Świadkowie narodzin komputerów osobistych i końca zimnej wojny.",
+   traits_en:["Self-reliant & skeptical","First PC generation","MTV culture","Entrepreneurial spirit"],
+   traits_pl:["Samodzielni i sceptyczni","Pierwsze pokolenie PC","Kultura MTV","Duch przedsiębiorczości"],
+   events_en:["Cold War end","Rise of MTV","Early internet","1987 stock crash","9/11 as adults"],
+   events_pl:["Koniec zimnej wojny","Powstanie MTV","Wczesny internet","Krach giełdowy 1987","9/11 jako dorośli"]},
+  {id:'millennials',start:1981,end:1996,color:"#993556",text:"#FBEAF0",era:'mid',
+   name_en:"Millennials",name_pl:"Millenialsi",nick_en:"Gen Y",nick_pl:"Pokolenie Y",
+   desc_en:"First generation to grow up alongside the internet. Entered adulthood during 9/11 and the 2008 financial crisis. Known for delaying traditional milestones like homeownership and marriage.",
+   desc_pl:"Pierwsze pokolenie dorastające razem z internetem. Weszli w dorosłość podczas 9/11 i kryzysu 2008. Znani z odkładania tradycyjnych kamieni milowych jak zakup domu czy ślub.",
+   traits_en:["Digital immigrants","Student debt crisis","Social media pioneers","Avocado toast culture"],
+   traits_pl:["Cyfrowi imigranci","Kryzys długu studenckiego","Pionierzy mediów społecznościowych","Kultura awokado na toście"],
+   events_en:["9/11","2008 financial crisis","Rise of Facebook","Obama election","COVID-19 as adults"],
+   events_pl:["9/11","Kryzys finansowy 2008","Powstanie Facebooka","Wybór Obamy","COVID-19 jako dorośli"]},
+  {id:'zillenials',start:1997,end:2002,color:"#BA7517",text:"#FAEEDA",era:'new',micro:true,
+   name_en:"Zillennials ★",name_pl:"Zillenialsi ★",nick_en:"Tech bridge cohort",nick_pl:"Pokolenie mostu technologicznego",
+   desc_en:"The micro-generation born at the exact crossover of analog and digital life. They remember life without smartphones but grew up naturally adopting them. The last ones with a true 'before and after' moment — they know how to use a phone but were not born into technology.",
+   desc_pl:"Mikro-pokolenie urodzone na skrzyżowaniu życia analogowego i cyfrowego. Pamiętają życie bez smartfonów, ale naturalnie je adoptowali. Ostatni z prawdziwym momentem 'przed i po' — wiedzą jak używać telefonu, ale nie urodzili się z technologią w rękach.",
+   traits_en:["Last pre-smartphone childhood","Early social media teens","Hybrid tech fluency","True cultural bridge"],
+   traits_pl:["Ostatnie dzieciństwo bez smartfona","Pierwsi nastolatkowie social media","Biegłość w dwóch światach","Prawdziwy most kulturowy"],
+   events_en:["9/11 as children","First iPhone 2007","Rise of YouTube","2008 crisis as teens","COVID as young adults"],
+   events_pl:["9/11 jako dzieci","Pierwszy iPhone 2007","Powstanie YouTube","Kryzys 2008 jako nastolatkowie","COVID jako młodzi dorośli"]},
+  {id:'genz',start:1997,end:2012,color:"#185FA5",text:"#E6F1FB",era:'new',
+   name_en:"Generation Z",name_pl:"Pokolenie Z",nick_en:"Zoomers",nick_pl:"Zumers",
+   desc_en:"True digital natives who never knew a world without the internet. Pragmatic, socially conscious, and the most diverse generation in history. Grew up through school shootings and a global pandemic.",
+   desc_pl:"Prawdziwi cyfrowi tubylcy, którzy nigdy nie znali świata bez internetu. Pragmatyczni i świadomi społecznie. Dorastali w cieniu strzelanin i globalnej pandemii.",
+   traits_en:["True digital natives","Mental health aware","Socially progressive","TikTok generation"],
+   traits_pl:["Prawdziwi cyfrowi tubylcy","Świadomość zdrowia psychicznego","Postępowi społecznie","Pokolenie TikToka"],
+   events_en:["2008 crisis as kids","COVID pandemic","Climate activism","AI emergence"],
+   events_pl:["Kryzys 2008 jako dzieci","Pandemia COVID","Aktywizm klimatyczny","Pojawienie się AI"]},
+  {id:'alpha',start:2013,end:2024,color:"#3B6D11",text:"#EAF3DE",era:'new',
+   name_en:"Generation Alpha",name_pl:"Pokolenie Alfa",nick_en:"iPad generation",nick_pl:"Pokolenie iPada",
+   desc_en:"The first generation born entirely in the 21st century. Many received tablets before they could walk. Growing up alongside AI, climate change, and remote learning.",
+   desc_pl:"Pierwsze pokolenie urodzone w całości w XXI wieku. Wielu dostało tablety zanim zaczęło chodzić. Dorastają razem ze sztuczną inteligencją i nauką zdalną.",
+   traits_en:["Born with AI","iPad toddlers","Remote-schooled","Climate natives"],
+   traits_pl:["Urodzeni z AI","Maluchy z iPadem","Uczeni zdalnie","Rdzenni klimatycznie"],
+   events_en:["COVID pandemic as children","AI revolution","Climate crisis","Fully post-analog"],
+   events_pl:["Pandemia COVID jako dzieci","Rewolucja AI","Kryzys klimatyczny","W pełni post-analogowi"]},
+  {id:'beta',start:2025,end:2039,color:"#7F77DD",text:"#EEEDFE",era:'new',
+   name_en:"Generation Beta",name_pl:"Pokolenie Beta",nick_en:"Emerging cohort",nick_pl:"Wyłaniająca się kohorta",
+   desc_en:"Just beginning. Will grow up in a world where AI is as normal as electricity. Their defining events, culture, and traits are yet to be written.",
+   desc_pl:"Dopiero się zaczyna. Będą dorastać w świecie, gdzie AI jest tak normalne jak prąd elektryczny. Ich definiujące wydarzenia i cechy jeszcze nie zostały napisane.",
+   traits_en:["AI-native","Post-smartphone world?","Future leaders","Unknown defining events"],
+   traits_pl:["Rodzimi użytkownicy AI","Świat po smartfonach?","Przyszli liderzy","Nieznane definiujące wydarzenia"],
+   events_en:["AI ubiquity","Unknown global events"],
+   events_pl:["Wszechobecność AI","Nieznane globalne wydarzenia"]},
+];
+
+const tickYears=[1883,1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010,2020,2030,2040];
+const ticksEl=document.getElementById('ticks');
+tickYears.forEach(y=>{
+  const s=document.createElement('span');
+  s.className='tick';
+  s.style.left=((y-START)/RANGE*100)+'%';
+  s.textContent=y===1883?"'83":y;
+  ticksEl.appendChild(s);
+});
+
+function renderRows(){
+  const rowsEl=document.getElementById('rows');
+  rowsEl.innerHTML='';
+  const nowPct=((NOW-START)/RANGE*100);
+  const t=i18n[lang];
+  gens.forEach(g=>{
+    const leftPct=((g.start-START)/RANGE*100);
+    const widthPct=((g.end-g.start)/RANGE*100);
+    const span=g.end-g.start;
+    const name=lang==='en'?g.name_en:g.name_pl;
+    const nick=lang==='en'?g.nick_en:g.nick_pl;
+    const row=document.createElement('div');
+    row.className='gen-row';
+    row.id='row-'+g.id;
+    row.innerHTML=`
+      <div class="gen-meta" onclick="selectGen('${g.id}')">
+        <div class="gen-name">${name}${g.micro?'<span class="micro-tag">micro</span>':''}</div>
+        <div class="gen-yr">${g.start}–${g.end}</div>
+      </div>
+      <div class="bar-area" onclick="selectGen('${g.id}')">
+        <div class="bar-bg"></div>
+        ${tickYears.map(y=>`<div class="grid-line" style="left:${((y-START)/RANGE*100)}%"></div>`).join('')}
+        <div class="now-line" style="left:${nowPct}%"><span class="now-label">${t.now}</span></div>
+        <div class="bar ${selectedId===g.id?'selected':''}" style="left:${leftPct}%;width:${widthPct}%;background:${g.color};color:${g.text};">
+          ${span>=7?span+t.yrs:''}
+        </div>
+      </div>
+      <div class="right-nick">${nick}</div>
+    `;
+    rowsEl.appendChild(row);
+  });
+}
+
+function selectGen(id){
+  selectedId=id;
+  const g=gens.find(x=>x.id===id);
+  const t=i18n[lang];
+  const panel=document.getElementById('detail');
+  panel.classList.remove('hidden');
+  document.getElementById('d-dot').style.background=g.color;
+  document.getElementById('d-title').textContent=lang==='en'?g.name_en:g.name_pl;
+  document.getElementById('d-sub').textContent=(lang==='en'?g.nick_en:g.nick_pl)+' · '+g.start+'–'+g.end;
+  const span=g.end-g.start;
+  const age1=Math.max(0,NOW-g.end);
+  const age2=NOW-g.start;
+  const eraLabel=g.start<1946?t.prewar:g.start<1997?t.coldwar:t.digital;
+  document.getElementById('d-stats').innerHTML=`
+    <div class="stat-card"><div class="stat-label">${t.birthSpan}</div><div class="stat-value">${span}<span class="stat-unit">${t.yrs}</span></div></div>
+    <div class="stat-card"><div class="stat-label">${t.ageRange}</div><div class="stat-value" style="font-size:16px;">${age1}–${age2}<span class="stat-unit">${t.yrs}</span></div></div>
+    <div class="stat-card"><div class="stat-label">${t.era}</div><div class="stat-value" style="font-size:15px;">${eraLabel}</div></div>
+  `;
+  document.getElementById('d-desc').textContent=lang==='en'?g.desc_en:g.desc_pl;
+  const traits=lang==='en'?g.traits_en:g.traits_pl;
+  document.getElementById('d-traits').innerHTML=traits.map(tr=>`<span class="trait">${tr}</span>`).join('');
+  const events=lang==='en'?g.events_en:g.events_pl;
+  document.getElementById('d-events').textContent=t.keyEvents+events.join(' · ');
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+  renderRows();
+}
+
+function updateUI(){
+  const t=i18n[lang];
+  document.getElementById('h-eyebrow').textContent=t.eyebrow;
+  document.getElementById('h-title').textContent=t.title;
+  document.getElementById('h-sub').textContent=t.sub;
+  document.getElementById('btn-all').textContent=t.btnAll;
+  document.getElementById('btn-pre').textContent=t.btnPre;
+  document.getElementById('btn-mid').textContent=t.btnMid;
+  document.getElementById('btn-new').textContent=t.btnNew;
+  document.getElementById('btn-micro').textContent=t.btnMicro;
+  document.getElementById('ui-hint').textContent=t.hint;
+  document.getElementById('ui-footnote').innerHTML=t.footnote;
+  renderRows();
+  if(selectedId) selectGen(selectedId);
+}
+
+function setLang(l,btn){
+  lang=l;
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updateUI();
+}
+
+function filterAll(btn){
+  document.querySelectorAll('.gen-row').forEach(r=>r.classList.remove('dimmed'));
+  setActive(btn);
+}
+function filterEra(era,btn){
+  const map={pre:['lost','greatest','silent'],mid:['boomers','genx','millennials'],new:['zillenials','genz','alpha','beta']};
+  gens.forEach(g=>{const r=document.getElementById('row-'+g.id);if(r)r.classList.toggle('dimmed',!map[era].includes(g.id));});
+  setActive(btn);
+}
+function filterMicro(btn){
+  gens.forEach(g=>{const r=document.getElementById('row-'+g.id);if(r)r.classList.toggle('dimmed',!g.micro);});
+  setActive(btn);
+}
+function setActive(btn){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+updateUI();
+</script>
+</body>
+</html>
